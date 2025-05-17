@@ -1,0 +1,22 @@
+[project]
+name = "prompt-pilot"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "jupyter>=1.1.1",
+    "langchain>=0.3.25",
+    "langchain-community>=0.3.23",
+    "langchain-core>=0.3.58",
+    "langchain-google-genai>=2.1.4",
+    "langchain-openai>=0.3.16",
+    "langgraph>=0.4.1",
+    "nest-asyncio>=1.6.0",
+    "openai>=1.77.0",
+    "pandas>=2.2.3",
+    "plotly>=6.0.1",
+    "pyppeteer>=2.0.0",
+    "python-dotenv>=1.1.0",
+    "streamlit>=1.45.1",
+]
