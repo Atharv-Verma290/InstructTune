@@ -8,6 +8,7 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_openai import ChatOpenAI
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langgraph.graph import StateGraph, END
+from langchain.chat_models import init_chat_model
 
 # --- Load Environment Variables ---
 load_dotenv()
@@ -33,6 +34,7 @@ class OverallState(TypedDict):
     prompt_versions: List[str]
     current_version: str
     counter: int
+    models_list: Dict[str, str]
 
 
 class TesterState(TypedDict):
@@ -146,16 +148,36 @@ def prompt_tester_node(state: OverallState):
     input = state.get('input_example', '')
     version = state.get('current_version', 'original')
     outputs = state.get('outputs', {})
+    model_list = state.get('models_list', {})
 
-    graph_output = prompt_tester_graph.invoke({"input_prompt": input, "instruction": prompt})
+    messages = [
+        SystemMessage(content=prompt),
+        HumanMessage(content=input)
+    ]
 
-    for model_name, result in {
-        "openai": graph_output.get("openai_output", {}),
-        "gemini": graph_output.get("gemini_output", {})
-    }.items():
+    for model_name, provider in model_list.items():
+        model = init_chat_model(model=model_name, model_provider=provider)
+        start_time = time()
+        response = model.invoke(messages)
+        end_time = time()
+        model_output = {}
+        model_output["output"] = response.content
+        model_output["latency"] = round((end_time - start_time), 2)
+        model_output["tokens"] = response.usage_metadata["total_tokens"]
+
         if model_name not in outputs:
             outputs[model_name] = {}
-        outputs[model_name][version] = result
+        outputs[model_name][version] = model_output
+
+    # graph_output = prompt_tester_graph.invoke({"input_prompt": input, "instruction": prompt})
+
+    # for model_name, result in {
+    #     "openai": graph_output.get("openai_output", {}),
+    #     "gemini": graph_output.get("gemini_output", {})
+    # }.items():
+    #     if model_name not in outputs:
+    #         outputs[model_name] = {}
+    #     outputs[model_name][version] = result
 
     return {"outputs": outputs}
 
@@ -216,30 +238,54 @@ def prompt_evaluator_node(state: OverallState):
     context = state.get('context')
     outputs = state.get('outputs', {})
     version = state.get('current_version', 'original')
+    models_list = state.get('models_list', {})
     evaluations = state.get('evaluations', {})
 
-    graph_input = {
-        "instruction": instruction,
-        "input_prompt": input_example,
-        "context": context,
-        "outputs": {
-            model: {version: outputs.get(model, {}).get(version, {})}
-            for model in outputs
-        }
-    }
+    
 
-    results = prompt_eval_graph.invoke(graph_input)
+    for model_name, provider in models_list.items():
+        messages = [
+            HumanMessage(
+                content=EVALUATOR_PROMPT.format(
+                    evaluation_schema=EvaluationScores.model_json_schema(),
+                    context=context, 
+                    input_prompt=input_example, 
+                    instruction=instruction,
+                    output=outputs[model_name][version].get('output', '')
+                )
+            ),
+        ]
+        model = init_chat_model(model=model_name, model_provider=provider)
+        structured_model = model.with_structured_output(EvaluationScores, method="function_calling")
+        response = structured_model.invoke(messages)
 
-    evaluation_results = {
-        "openai": results.get('openai_eval'),
-        "gemini": results.get('gemini_eval')
-    }
-    print("Evaluation_results: ", evaluation_results)
-
-    for model_name, eval_data in evaluation_results.items():
         if model_name not in evaluations:
             evaluations[model_name] = {}
-        evaluations[model_name][version] = eval_data.model_dump()
+        evaluations[model_name][version] = response.model_dump()
+        
+
+    # graph_input = {
+    #     "instruction": instruction,
+    #     "input_prompt": input_example,
+    #     "context": context,
+    #     "outputs": {
+    #         model: {version: outputs.get(model, {}).get(version, {})}
+    #         for model in outputs
+    #     }
+    # }
+
+    # results = prompt_eval_graph.invoke(graph_input)
+
+    # evaluation_results = {
+    #     "openai": results.get('openai_eval'),
+    #     "gemini": results.get('gemini_eval')
+    # }
+    # print("Evaluation_results: ", evaluation_results)
+
+    # for model_name, eval_data in evaluation_results.items():
+    #     if model_name not in evaluations:
+    #         evaluations[model_name] = {}
+    #     evaluations[model_name][version] = eval_data.model_dump()
 
     return {"evaluations": evaluations}
 
@@ -334,10 +380,15 @@ graph = graph_builder.compile()
 
 # --- Main Execution ---
 if __name__ == "__main__":
+    models_list = {
+        "gpt-4o-mini": "openai",
+        "gemini-2.0-flash": "google-genai"
+    }
     inputs = {
         "original_prompt": "Teach the given topic from the user.",
         "input_example": "What is gravity?",
-        "context": "A middle school teaching agent used to teach complex topics to middle school kids."
+        "context": "A middle school teaching agent used to teach complex topics to middle school kids.",
+        "models_list": models_list
     }
 
     result = graph.invoke(inputs)

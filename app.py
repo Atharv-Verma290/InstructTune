@@ -1,55 +1,73 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
-from main import graph  # this imports the graph from your main.py
+from main import graph  # LangGraph workflow
 
 st.set_page_config(page_title="PromptPilot", layout="wide")
+st.title("🧪 PromptPilot – Prompt Optimization & Evaluation")
 
-st.title("🧪 PromptPilot - Prompt Evaluation & Optimization")
+# --- Sidebar Form for Input ---
+with st.sidebar.form("model_selection_form"):
+    st.header("Prompt Configuration")
 
-with st.sidebar:
-    st.header("Prompt Setup")
-    original_prompt = st.text_area("Prompt", "You are a teacher. Teach the given topic.")
-    input_example = st.text_area("Input", "What is gravity?")
-    context = st.text_area("Context", "Middle school teaching agent tasked with explaining complex concepts to simple terms. For teaching middle school students as a teaching assistant.")
-    run_button = st.button("🚀 Run Prompt Evaluation")
+    instruction = st.text_area("Prompt Instruction", "Summarize this article in one sentence.")
+    input_example = st.text_area("Input Example", "The iPhone 15 has a great camera but average battery life.")
+    output_example = st.text_area("Expected Output", "Great camera, average battery.")
+    context = st.text_area("Context / Problem Description", "Used in a product summary chatbot.")
 
-if run_button:
-    with st.spinner("Running PromptPilot workflow..."):
+    st.subheader("Select up to 3 models")
+
+    models_list = {}
+    for i in range(1, 4):
+        st.markdown(f"**Model {i}**")
+        col1, col2 = st.columns(2)
+        with col1:
+            provider = st.selectbox(f"Provider {i}", ["", "openai", "google-genai"], key=f"provider_{i}")
+        with col2:
+            model = st.text_input(f"Model Name {i}", key=f"model_{i}")
+
+        if provider and model:
+            models_list[model] = provider
+
+    submitted = st.form_submit_button("🚀 Run Prompt Evaluation")
+
+# --- Run Graph ---
+if submitted and models_list:
+    with st.spinner("Running prompt evaluation workflow..."):
         state = graph.invoke({
-            "original_prompt": original_prompt,
+            "original_prompt": instruction,
+            "candidate_prompts": [instruction],
             "input_example": input_example,
+            "output_example": output_example,
             "context": context,
-            "candidate_prompts": [original_prompt]
+            "models_list": models_list
         })
 
-    st.success("Done! Here's your report 👇")
+    st.success("Prompt evaluation complete!")
 
-    # -- PROMPT HISTORY --
+    # --- Show Prompt Versions ---
     st.header("📜 Prompt Versions")
     for i, prompt in enumerate(state.get("candidate_prompts", [])):
         label = "Original" if i == 0 else f"Optimized {i}"
         st.code(prompt, language="markdown")
-        st.markdown(f"**Version {label}**")
+        st.markdown(f"**Version: {label}**")
 
-    # -- MODEL OUTPUTS --
+    # --- Model Outputs ---
     st.header("📤 Model Outputs")
-    outputs = state.get("outputs", {})
-    for model, versions in outputs.items():
-        for version, result in versions.items():
-            with st.expander(f"🧠 {model.upper()} - {version}"):
-                st.text_area("Output", result.get("output", ""), height=150)
-                st.markdown(f"**Latency**: {result.get('latency', 'N/A')} s")
-                st.markdown(f"**Tokens**: {result.get('tokens', 'N/A')}")
-                st.markdown(f"**Cost**: ${result.get('cost', 0):.4f}")
+    for model, versions in state.get("outputs", {}).items():
+        for version, data in versions.items():
+            with st.expander(f"🧠 {model.upper()} – {version}"):
+                st.text_area("Output", data.get("output", ""), height=150)
+                st.markdown(f"**Latency**: {data.get('latency', 'N/A')} s")
+                st.markdown(f"**Tokens**: {data.get('tokens', 'N/A')}")
+                st.markdown(f"**Cost**: ${data.get('cost', 0):.4f}")
 
-    # -- EVALUATION SCORES --
+    # --- Evaluation Scores ---
     st.header("📊 Evaluation Scores")
     rows = []
-    evals = state.get("evaluations", {})
-    for model, versions in evals.items():
+    for model, versions in state.get("evaluations", {}).items():
         for version, scores in versions.items():
-            row = {"Model": model.upper(), "Version": version}
+            row = {"Model": model, "Version": version}
             row.update(scores)
             rows.append(row)
 
@@ -57,35 +75,19 @@ if run_button:
         df = pd.DataFrame(rows)
         st.dataframe(df)
 
-        # Optional: Metric visualizations
         st.subheader("📈 Metric Comparison")
-        metrics = [col for col in df.columns if col not in ["Model", "Version", "feedback"]]
-        for metric in metrics:
-            fig = px.bar(
-                df, x="Model", y=metric, color="Version",
-                barmode="group", title=f"{metric.title()} Comparison"
-            )
+        metric_cols = [col for col in df.columns if col not in ["Model", "Version", "feedback"]]
+        for metric in metric_cols:
+            fig = px.bar(df, x="Model", y=metric, color="Version", barmode="group")
             st.plotly_chart(fig, use_container_width=True)
 
-        # Optional: Radar chart for one metric group
-        if len(df) > 1:
-            radar_data = df.melt(id_vars=["Model", "Version"], value_vars=metrics)
-            fig = px.line_polar(
-                radar_data,
-                r="value", theta="variable",
-                color="Model",
-                line_group="Version",
-                title="Radar Chart - Model Performance"
-            )
-            st.plotly_chart(fig, use_container_width=True)
-
-    else:
-        st.warning("No evaluation results found.")
-
-    # -- FINAL OPTIMIZED PROMPT --
+    # --- Optimized Prompt (if available) ---
     if state.get("optimized_prompt"):
         st.header("🎯 Optimized Prompt")
         st.code(state["optimized_prompt"], language="markdown")
 
 else:
-    st.info("Enter a prompt and context, then click 'Run Prompt Evaluation'.")
+    if submitted and not models_list:
+        st.warning("Please select at least one model and provider.")
+    else:
+        st.info("Fill the prompt and model details, then click **Run Prompt Evaluation**.")
