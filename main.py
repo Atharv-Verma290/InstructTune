@@ -34,14 +34,16 @@ class OverallState(TypedDict):
     prompt_versions: List[str]
     current_version: str
     counter: int
-    models_list: Dict[str, str]
+    models_list: List[Dict[str, str]]
 
 
 class TesterState(TypedDict):
     input_prompt: str
     instruction: str 
-    openai_output: Dict[str, Any] #include output, token usage, latency
-    gemini_output: Dict[str, Any] #include output, token usage, latency
+    models_list: List[Dict[str, str]]
+    model_0_output: Dict[str, Any] 
+    model_1_output: Dict[str, Any] 
+    model_2_output: Dict[str, Any]
 
 
 class EvaluatorState(TypedDict):
@@ -49,8 +51,10 @@ class EvaluatorState(TypedDict):
     input_prompt: str
     outputs: Dict[str, Dict[str, Any]]
     context: str 
-    openai_eval: Dict[str, Any]
-    gemini_eval: Dict[str, Any]
+    models_list: List[Dict[str, str]]
+    model_0_eval: Dict[str, Any]
+    model_1_eval: Dict[str, Any]
+    model_2_eval: Dict[str, Any]
 
 
 # --- Pydantic Models ---
@@ -105,42 +109,88 @@ def prompt_selector_node(state: OverallState):
     return {"prompt_to_test": prompt_to_test}
 
 
-def openai_tester_node(state: TesterState):
+def model_0_tester_node(state: TesterState):
     input_prompt = state.get('input_prompt', '')
     instruction = state.get('instruction', '')
-    messages = [
-        SystemMessage(content=instruction),
-        HumanMessage(content=input_prompt)
-    ]
-    start_time = time()
-    response = openai_model.invoke(messages)
-    end_time = time()
+    models_list = state.get('models_list', {})
+    if len(models_list) <= 0:
+        return {}  # No model, skip
+    model_info = models_list[0]
+    model_name = next(iter(model_info))
+    provider = model_info[model_name]
 
-    openai_output = {}
-    openai_output["output"] = response.content 
-    openai_output["tokens"] = response.usage_metadata["total_tokens"]
-    openai_output["latency"] = round((end_time - start_time), 2)
+    if model_name and provider:
+        model = init_chat_model(model=model_name, model_provider=provider)
+        messages = [
+            SystemMessage(content=instruction),
+            HumanMessage(content=input_prompt)
+        ]
+        start_time = time()
+        response = model.invoke(messages)
+        end_time = time()
+
+        model_0_output = {}
+        model_0_output["output"] = response.content 
+        model_0_output["tokens"] = response.usage_metadata["total_tokens"]
+        model_0_output["latency"] = round((end_time - start_time), 2)
     
-    return {"openai_output": openai_output}
+    return {"model_0_output": model_0_output}
 
 
-def gemini_tester_node(state: TesterState):
+def model_1_tester_node(state: TesterState):
     input_prompt = state.get('input_prompt', '')
     instruction = state.get('instruction', '')
-    messages = [
-        SystemMessage(content=instruction),
-        HumanMessage(content=input_prompt)
-    ]
-    start_time = time()
-    response = gemini_model.invoke(messages)
-    end_time = time()
+    models_list = state.get('models_list', {})
+    if len(models_list) <= 1:
+        return {}  # No second model, skip
+    model_info = models_list[1]
+    model_name = next(iter(model_info))
+    provider = model_info[model_name]
 
-    gemini_output = {}
-    gemini_output["output"] = response.content 
-    gemini_output["tokens"] = response.usage_metadata["total_tokens"]
-    gemini_output["latency"] = round((end_time - start_time), 2)
+    if model_name and provider:
+        model = init_chat_model(model=model_name, model_provider=provider)
+        messages = [
+            SystemMessage(content=instruction),
+            HumanMessage(content=input_prompt)
+        ]
+        start_time = time()
+        response = model.invoke(messages)
+        end_time = time()
+
+        model_1_output = {}
+        model_1_output["output"] = response.content 
+        model_1_output["tokens"] = response.usage_metadata["total_tokens"]
+        model_1_output["latency"] = round((end_time - start_time), 2)
     
-    return {"gemini_output": gemini_output}
+    return {"model_1_output": model_1_output}
+
+
+def model_2_tester_node(state: TesterState):
+    input_prompt = state.get('input_prompt', '')
+    instruction = state.get('instruction', '')
+    models_list = state.get('models_list', {})
+    if len(models_list) <= 2:
+        return {}  # No third model, skip
+    model_info = models_list[2]
+    model_name = next(iter(model_info))
+    provider = model_info[model_name]
+
+    if model_name and provider:
+        model = init_chat_model(model=model_name, model_provider=provider)
+        messages = [
+            SystemMessage(content=instruction),
+            HumanMessage(content=input_prompt)
+        ]
+        start_time = time()
+        response = model.invoke(messages)
+        end_time = time()
+
+        model_2_output = {}
+        model_2_output["output"] = response.content 
+        model_2_output["tokens"] = response.usage_metadata["total_tokens"]
+        model_2_output["latency"] = round((end_time - start_time), 2)
+    
+    return {"model_2_output": model_2_output}
 
 
 def prompt_tester_node(state: OverallState):
@@ -148,50 +198,39 @@ def prompt_tester_node(state: OverallState):
     input = state.get('input_example', '')
     version = state.get('current_version', 'original')
     outputs = state.get('outputs', {})
-    model_list = state.get('models_list', {})
+    models_list = state.get('models_list', {})
 
-    messages = [
-        SystemMessage(content=prompt),
-        HumanMessage(content=input)
-    ]
+    graph_output = prompt_tester_graph.invoke({"input_prompt": input, "instruction": prompt, "models_list": models_list})
 
-    for model_name, provider in model_list.items():
-        model = init_chat_model(model=model_name, model_provider=provider)
-        start_time = time()
-        response = model.invoke(messages)
-        end_time = time()
-        model_output = {}
-        model_output["output"] = response.content
-        model_output["latency"] = round((end_time - start_time), 2)
-        model_output["tokens"] = response.usage_metadata["total_tokens"]
-
+    for idx, model_info in enumerate(models_list):
+        model_name = next(iter(model_info))
+        result = graph_output.get(f"model_{idx}_output", {})
         if model_name not in outputs:
             outputs[model_name] = {}
-        outputs[model_name][version] = model_output
-
-    # graph_output = prompt_tester_graph.invoke({"input_prompt": input, "instruction": prompt})
-
-    # for model_name, result in {
-    #     "openai": graph_output.get("openai_output", {}),
-    #     "gemini": graph_output.get("gemini_output", {})
-    # }.items():
-    #     if model_name not in outputs:
-    #         outputs[model_name] = {}
-    #     outputs[model_name][version] = result
+        outputs[model_name][version] = result
 
     return {"outputs": outputs}
 
 
-def openai_evaluator_node(state: EvaluatorState):
+def model_0_evaluator_node(state: EvaluatorState):
     instruction = state.get('instruction', '')
     input_prompt = state.get('input_prompt', '')
-    outputs = state['outputs'].get('openai', {})
-    version = list(outputs.keys())[0]
+    outputs = state.get('outputs', {})
+    models_list = state.get('models_list', [])
+    if len(models_list) == 0:
+        return {}
+    model_info = models_list[0]
+    model_name = next(iter(model_info))
+    provider = model_info[model_name]
+    model_outputs = outputs.get(model_name, {})
+    if not model_outputs:
+        return {}
+    version = list(model_outputs.keys())[0]
     context = state.get('context', '')
-    output_data = outputs[version]
+    output_data = model_outputs[version]
 
     messages = [
-        SystemMessage(
+        HumanMessage(
             content=EVALUATOR_PROMPT.format(
                 evaluation_schema=EvaluationScores.model_json_schema(),
                 context=context, 
@@ -201,19 +240,29 @@ def openai_evaluator_node(state: EvaluatorState):
             )
         ),
     ]
-
-    structured_model = openai_model.with_structured_output(EvaluationScores, method="function_calling")
+    model = init_chat_model(model=model_name, model_provider=provider)
+    structured_model = model.with_structured_output(EvaluationScores, method="function_calling")
     response = structured_model.invoke(messages)
-    return {"openai_eval": response}
+    # evaluation = response.model_dump_json()
+    return {"model_0_eval": response.model_dump()}
 
 
-def gemini_evaluator_node(state: EvaluatorState):
+def model_1_evaluator_node(state: EvaluatorState):
     instruction = state.get('instruction', '')
     input_prompt = state.get('input_prompt', '')
-    outputs = state['outputs'].get('gemini', {})
-    version = list(outputs.keys())[0]
+    outputs = state.get('outputs', {})
+    models_list = state.get('models_list', [])
+    if len(models_list) <= 1:
+        return {}
+    model_info = models_list[1]
+    model_name = next(iter(model_info))
+    provider = model_info[model_name]
+    model_outputs = outputs.get(model_name, {})
+    if not model_outputs:
+        return {}
+    version = list(model_outputs.keys())[0]
     context = state.get('context', '')
-    output_data = outputs[version]
+    output_data = model_outputs[version]
 
     messages = [
         HumanMessage(
@@ -227,9 +276,47 @@ def gemini_evaluator_node(state: EvaluatorState):
         ),
     ]
 
-    structured_model = gemini_model.with_structured_output(EvaluationScores, method="function_calling")
+    model = init_chat_model(model=model_name, model_provider=provider)
+    structured_model = model.with_structured_output(EvaluationScores, method="function_calling")
     response = structured_model.invoke(messages)
-    return {"gemini_eval": response}
+    # evaluation = response.model_dump
+    return {"model_1_eval": response.model_dump()}
+
+
+def model_2_evaluator_node(state: EvaluatorState):
+    instruction = state.get('instruction', '')
+    input_prompt = state.get('input_prompt', '')
+    outputs = state.get('outputs', {})
+    models_list = state.get('models_list', [])
+    if len(models_list) <= 2:
+        return {}
+    model_info = models_list[2]
+    model_name = next(iter(model_info))
+    provider = model_info[model_name]
+    model_outputs = outputs.get(model_name, {})
+    if not model_outputs:
+        return {}
+    version = list(model_outputs.keys())[0]
+    context = state.get('context', '')
+    output_data = model_outputs[version]
+
+    messages = [
+        HumanMessage(
+            content=EVALUATOR_PROMPT.format(
+                evaluation_schema=EvaluationScores.model_json_schema(), 
+                context=context, 
+                input_prompt=input_prompt, 
+                instruction=instruction,
+                output=output_data.get('output', '')
+            )
+        ),
+    ]
+
+    model = init_chat_model(model=model_name, model_provider=provider)
+    structured_model = model.with_structured_output(EvaluationScores, method="function_calling")
+    response = structured_model.invoke(messages)
+    # evaluation = response.model_dump
+    return {"model_2_eval": response.model_dump()}
 
 
 def prompt_evaluator_node(state: OverallState):
@@ -238,54 +325,34 @@ def prompt_evaluator_node(state: OverallState):
     context = state.get('context')
     outputs = state.get('outputs', {})
     version = state.get('current_version', 'original')
-    models_list = state.get('models_list', {})
     evaluations = state.get('evaluations', {})
+    models_list = state.get('models_list', [])
 
-    
+    graph_input = {
+        "instruction": instruction,
+        "input_prompt": input_example,
+        "context": context,
+        "outputs": {
+            model_name: {version: outputs.get(model_name, {}).get(version, {})}
+            for model_info in models_list
+            for model_name in model_info
+        },
+        "models_list": models_list
+    }
 
-    for model_name, provider in models_list.items():
-        messages = [
-            HumanMessage(
-                content=EVALUATOR_PROMPT.format(
-                    evaluation_schema=EvaluationScores.model_json_schema(),
-                    context=context, 
-                    input_prompt=input_example, 
-                    instruction=instruction,
-                    output=outputs[model_name][version].get('output', '')
-                )
-            ),
-        ]
-        model = init_chat_model(model=model_name, model_provider=provider)
-        structured_model = model.with_structured_output(EvaluationScores, method="function_calling")
-        response = structured_model.invoke(messages)
+    results = prompt_eval_graph.invoke(graph_input)
 
-        if model_name not in evaluations:
-            evaluations[model_name] = {}
-        evaluations[model_name][version] = response.model_dump()
-        
-
-    # graph_input = {
-    #     "instruction": instruction,
-    #     "input_prompt": input_example,
-    #     "context": context,
-    #     "outputs": {
-    #         model: {version: outputs.get(model, {}).get(version, {})}
-    #         for model in outputs
-    #     }
-    # }
-
-    # results = prompt_eval_graph.invoke(graph_input)
-
-    # evaluation_results = {
-    #     "openai": results.get('openai_eval'),
-    #     "gemini": results.get('gemini_eval')
-    # }
-    # print("Evaluation_results: ", evaluation_results)
-
-    # for model_name, eval_data in evaluation_results.items():
-    #     if model_name not in evaluations:
-    #         evaluations[model_name] = {}
-    #     evaluations[model_name][version] = eval_data.model_dump()
+    for idx, model_info in enumerate(models_list):
+        model_name = next(iter(model_info))
+        eval_key = f"model_{idx}_eval"
+        eval_data = results.get(eval_key)
+        if eval_data is not None:
+            if model_name not in evaluations:
+                evaluations[model_name] = {}
+            if hasattr(eval_data, "model_dump"):
+                evaluations[model_name][version] = eval_data.model_dump()
+            else:
+                evaluations[model_name][version] = eval_data
 
     return {"evaluations": evaluations}
 
@@ -348,21 +415,27 @@ def routing_function(state: OverallState):
 
 # --- Graph Definitions ---
 prompt_tester_workflow = StateGraph(TesterState)
-prompt_tester_workflow.add_node("openai_tester", openai_tester_node)
-prompt_tester_workflow.add_node("gemini_tester", gemini_tester_node)
-prompt_tester_workflow.set_entry_point("openai_tester")
-prompt_tester_workflow.set_entry_point("gemini_tester")
-prompt_tester_workflow.add_edge("openai_tester", END)
-prompt_tester_workflow.add_edge("gemini_tester", END)
+prompt_tester_workflow.add_node("model_0_tester", model_0_tester_node)
+prompt_tester_workflow.add_node("model_1_tester", model_1_tester_node)
+prompt_tester_workflow.add_node("model_2_tester", model_2_tester_node)
+prompt_tester_workflow.set_entry_point("model_0_tester")
+prompt_tester_workflow.set_entry_point("model_1_tester")
+prompt_tester_workflow.set_entry_point("model_2_tester")
+prompt_tester_workflow.add_edge("model_0_tester", END)
+prompt_tester_workflow.add_edge("model_1_tester", END)
+prompt_tester_workflow.add_edge("model_2_tester", END)
 prompt_tester_graph = prompt_tester_workflow.compile()
 
-prompt_eval_workflow = StateGraph(EvaluatorState)
-prompt_eval_workflow.add_node("openai_evaluator", openai_evaluator_node)
-prompt_eval_workflow.add_node("gemini_evaluator", gemini_evaluator_node)
-prompt_eval_workflow.set_entry_point("openai_evaluator")
-prompt_eval_workflow.set_entry_point("gemini_evaluator")
-prompt_eval_workflow.add_edge("openai_evaluator", END)
-prompt_eval_workflow.add_edge("gemini_evaluator", END)
+prompt_eval_workflow  = StateGraph(EvaluatorState)
+prompt_eval_workflow.add_node("model_0_evaluator", model_0_evaluator_node)
+prompt_eval_workflow.add_node("model_1_evaluator", model_1_evaluator_node)
+prompt_eval_workflow.add_node("model_2_evaluator", model_2_evaluator_node)
+prompt_eval_workflow.set_entry_point("model_0_evaluator")
+prompt_eval_workflow.set_entry_point("model_1_evaluator")
+prompt_eval_workflow.set_entry_point("model_2_evaluator")
+prompt_eval_workflow.add_edge("model_0_evaluator", END)
+prompt_eval_workflow.add_edge("model_1_evaluator", END)
+prompt_eval_workflow.add_edge("model_2_evaluator", END)
 prompt_eval_graph = prompt_eval_workflow.compile()
 
 graph_builder = StateGraph(OverallState)
@@ -380,10 +453,10 @@ graph = graph_builder.compile()
 
 # --- Main Execution ---
 if __name__ == "__main__":
-    models_list = {
-        "gpt-4o-mini": "openai",
-        "gemini-2.0-flash": "google-genai"
-    }
+    models_list = [
+        {"gpt-4o-mini": "openai"},
+        {"gemini-2.0-flash": "google-genai"}
+    ]
     inputs = {
         "original_prompt": "Teach the given topic from the user.",
         "input_example": "What is gravity?",

@@ -17,7 +17,7 @@ with st.sidebar.form("model_selection_form"):
 
     st.subheader("Select up to 3 models")
 
-    models_list = {}
+    models_list = []
     for i in range(1, 4):
         st.markdown(f"**Model {i}**")
         col1, col2 = st.columns(2)
@@ -27,7 +27,7 @@ with st.sidebar.form("model_selection_form"):
             model = st.text_input(f"Model Name {i}", key=f"model_{i}")
 
         if provider and model:
-            models_list[model] = provider
+            models_list.append({model: provider})  # <-- changed from dict to list of dicts
 
     submitted = st.form_submit_button("🚀 Run Prompt Evaluation")
 
