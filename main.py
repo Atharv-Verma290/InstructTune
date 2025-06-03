@@ -90,7 +90,7 @@ Given the context of the task(if given) and the model's output, score the output
 """
 
 OPTIMIZER_PROMPT="""
-You are a expert prompt engineer. Your job is optimize the given prompt based on the context and evaluation.ONLY OUTPUT THE OPTIMIZED PROMPT.
+You are a expert prompt engineer. Your job is optimize the given prompt based on the context and evaluation.ONLY OUTPUT THE OPTIMIZED PROMPT. DO NOT INCLUDE THE TOPIC FROM THE EVALUATION INTO THE NEW PROMPT.
 
 ### Prompt: 
 {prompt}
