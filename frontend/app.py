@@ -2,9 +2,8 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 import requests
-from backend.main import graph  # LangGraph workflow
 
-API_URL = "http://localhost:8000/run-graph"
+API_URL = "http://backend:8000/run-graph"
 
 st.set_page_config(page_title="PromptPilot", layout="wide")
 st.title("🧪 PromptPilot – Prompt Optimization & Evaluation")
