@@ -12,10 +12,10 @@ st.title("InstructTune – Agent Instruction Optimization & Evaluation")
 with st.sidebar.form("model_selection_form"):
     st.header("Prompt Configuration")
 
-    instruction = st.text_area("Prompt Instruction", "Summarize this article in one sentence.")
-    input_example = st.text_area("Input Example", "The iPhone 15 has a great camera but average battery life.")
-    output_example = st.text_area("Expected Output", "Great camera, average battery.")
-    context = st.text_area("Context / Problem Description", "Used in a product summary chatbot.")
+    instruction = st.text_area("Prompt Instruction", "Teach given user topic.")
+    input_example = st.text_area("Input Example", "What is gravity?")
+    # output_example = st.text_area("Expected Output", "Great camera, average battery.") ignore Expected Output for now.
+    context = st.text_area("Context / Problem Description", "A middle school teaching assistant tasked with teach complex topics to middle school kids.")
 
     st.subheader("Select up to 3 models")
 
