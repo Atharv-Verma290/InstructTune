@@ -460,6 +460,7 @@ class GraphInput(BaseModel):
     original_prompt: str
     input_example: str 
     context: str 
+    candidate_prompts: list
     models_list: list 
 
 @app.post("/run-graph")

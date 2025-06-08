@@ -12,7 +12,7 @@ st.title("InstructTune – Agent Instruction Optimization & Evaluation")
 with st.sidebar.form("model_selection_form"):
     st.header("Prompt Configuration")
 
-    instruction = st.text_area("Prompt Instruction", "Teach given user topic.")
+    instruction = st.text_area("Agent Instruction Prompt", "Teach given user topic.")
     input_example = st.text_area("Input Example", "What is gravity?")
     # output_example = st.text_area("Expected Output", "Great camera, average battery.") ignore Expected Output for now.
     context = st.text_area("Context / Problem Description", "A middle school teaching assistant tasked with teach complex topics to middle school kids.")
@@ -31,28 +31,29 @@ with st.sidebar.form("model_selection_form"):
         if provider and model:
             models_list.append({model: provider})  # <-- changed from dict to list of dicts
 
-    submitted = st.form_submit_button("🚀 Run Prompt Evaluation")
+    submitted = st.form_submit_button("🚀 Run Instruction Evaluation")
 
 # --- Run Graph ---
 if submitted and models_list:
-    with st.spinner("Running prompt evaluation workflow..."):
+    with st.spinner("Running instruction evaluation workflow..."):
         payload = {
             "original_prompt": instruction,
             "input_example": input_example,
             "context": context,
+            "candidate_prompts": [instruction],
             "models_list": models_list
         }
         try:
             response = requests.post(API_URL, json=payload)
             response.raise_for_status()
             state = response.json()
-            st.success("Prompt evaluation complete!")
+            st.success("Instruction prompt evaluation complete!")
         except Exception as e:
             st.error(f"API call failed: {e}")
             state = {}
 
     # --- Show Prompt Versions ---
-    st.header("📜 Prompt Versions")
+    st.header("📜 Instruction Prompt Versions")
     for i, prompt in enumerate(state.get("candidate_prompts", [])):
         label = "Original" if i == 0 else f"Optimized {i}"
         st.code(prompt, language="markdown")
@@ -89,11 +90,11 @@ if submitted and models_list:
 
     # --- Optimized Prompt (if available) ---
     if state.get("optimized_prompt"):
-        st.header("🎯 Optimized Prompt")
+        st.header("🎯 Optimized Instruction")
         st.code(state["optimized_prompt"], language="markdown")
 
 else:
     if submitted and not models_list:
         st.warning("Please select at least one model and provider.")
     else:
-        st.info("Fill the prompt and model details, then click **Run Prompt Evaluation**.")
+        st.info("Fill the prompt and model details, then click **Run Instruction Prompt Evaluation**.")
