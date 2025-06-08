@@ -1,7 +1,7 @@
 [project]
-name = "prompt-pilot"
+name = "instruct-tune"
 version = "0.1.0"
-description = "Add your description here"
+description = "InstructTune is a tool for agent prompt intruction evaluation, optimization and comparison on multiple LLMs."
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [

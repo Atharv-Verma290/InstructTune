@@ -1,4 +1,4 @@
-name: prompt-pilot
+name: instruct-tune
 
 services:
   backend:

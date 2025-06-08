@@ -5,8 +5,8 @@ import requests
 
 API_URL = "http://backend:8000/run-graph"
 
-st.set_page_config(page_title="PromptPilot", layout="wide")
-st.title("🧪 PromptPilot – Prompt Optimization & Evaluation")
+st.set_page_config(page_title="InstructTune", layout="wide")
+st.title("InstructTune – Prompt Optimization & Evaluation")
 
 # --- Sidebar Form for Input ---
 with st.sidebar.form("model_selection_form"):
