@@ -63,3 +63,9 @@ After the containers are up, go to:
 ```http://localhost:8501```
 
 Enter the prompt configuration details and click **Run Instruction Evaluation** to see results and prompt refinements.
+
+![InstructTune Dashboard Screenshot 1](images/Screenshot_1.png)
+
+![InstructTune Dashboard Screenshot 2](images/Screenshot_2.png)
+
+![InstructTune Dashboard Screenshot 3](images/Screenshot_3.png)
